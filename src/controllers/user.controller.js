@@ -322,35 +322,35 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
   const channel = await User.aggregate([
     {
       $match: {
-        username: username?.toLowerCase(),
+        username: username?.toLowerCase(), // user ley kunai channel ko profile kholxa through username. so tesle kholyako profile ko information hami sanga database ma xa. database bata tesko id extract garyem
       },
     },
     {
-      $lookup: {
-        from: "subscriptions",
-        localField: "_id",
-        foreignField: "channel",
-        as: "subscribers",
+      $lookup: {  // total number of subscribers khojna paryo tesko lagi lookup lagyako
+        from: "subscriptions", //kata bata khojne. hamro subscription model bata
+        localField: "_id", // tyo khojyako user ko id
+        foreignField: "channel", // subscription model ma chai documents banyako hunxa. tyo sabai documents ma dui ota field hunxan subscriber ra channnel. total numbers of subscribers find garna hami ley tyo search huna lagyako user ko id chai channel field ma gayera khojxam. jati ota channel field ma tyo id match garxa teti nai hamro subscribers hunxan
+        as: "subscribers", // count garyako result lai as a subscriber result present garyem
       },
     },
     {
-      $lookup: {
-        from: "subscriptions",
-        localField: "_id",
-        foreignField: "subscriber",
-        as: "subscribedTo",
+      $lookup: { // aaba hamro kaam kati ota channel lai subscribe garyako xa vanyera patta lagaune ho
+        from: "subscriptions", // patta lagauna feri jana paryo subscription model ma
+        localField: "_id", // hami aaile searched user document ma xam. aani yo document ma tyo searched user ko detail _id field ma stored xa
+        foreignField: "subscriber", // tyo _id leyera gayem hami subscription model ma. yo model ma dherai nai documents xan. tee documents ma chai kati ota document ma subscriber field ma chai yo id xa hai vanyera khojxan josle hami lai total number of subscribed accounts dinxa
+        as: "subscribedTo", // pako results lai as an array named subscribedTo ma send garxam
       },
     },
     {
       $addFields: {
         subscribersCount: {
-          $size: "$subscribers",
+          $size: "$subscribers", // hami ley ta result array ma paunxam. so tyo array ko size calculate garyako
         },
         channelIsSubscribedToCount: {
-          $size: "$subscribedTo",
+          $size: "$subscribedTo", 
         },
-        isSubscribed: {
-          $cond: {
+        isSubscribed: { // aaba hami ley tyo search garyako user lai subscribe garyako xa ki nai vanyera patta lagaun paryo. 
+          $cond: { // tesko lagi ta tyo searched user ko document ko subscriber field ma tesko naam xa ki nai check garxam
             if: {
               $in: [req.user?._id, "$subscribers.subscriber"],
             },
@@ -361,7 +361,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
       },
     },
     {
-      $project: {
+      $project: { // yo step bata result return garxam. result chai k k return garni ho tani vanyera yeha mention garxam
         fullname: 1,
         username: 1,
         subscribersCount: 1,
