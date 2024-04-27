@@ -13,8 +13,3 @@ connectDB()
   .catch((e) => {
     console.log("MongoDB connection error", e);
   });
-
-// connectDB();
-// app.listen(PORT, () => {
-//   console.log(`Port is running on ${PORT}`);
-// });
