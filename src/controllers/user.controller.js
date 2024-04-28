@@ -101,7 +101,7 @@ const loginUser = asyncHandler(async (req, res) => {
   console.log(email);
 
   if (!username && !email) {
-    throw new ApiError(400, "username or email is required");
+    throw new APIError(400, "username or email is required");
   }
 
   // Here is an alternative of above code based on logic discussed in video:
@@ -115,13 +115,13 @@ const loginUser = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    throw new ApiError(404, "User does not exist");
+    throw new APIError(404, "User does not exist");
   }
 
   const isPasswordValid = await user.isPasswordCorrect(password);
 
   if (!isPasswordValid) {
-    throw new ApiError(401, "Invalid user credentials");
+    throw new APIError(401, "Invalid user credentials");
   }
 
   const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
@@ -221,10 +221,12 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
-  const { oldpassword, newPassword } = req.body;
-  const user = User.findById(req.user?._id);
-  const isPasswordCorrect = await user.isPasswordCorrect(oldpassword);
-  if (!isPasswordCorrect) {
+  const { oldPassword, newPassword } = req.body;
+
+  const user = await User.findById(req.user?._id);
+
+  const isOldPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+  if (!isOldPasswordCorrect) {
     throw new APIError(400, "Invalid Old Password");
   }
   user.password = newPassword;
@@ -237,6 +239,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
   const { fullname, email } = req.body;
+  console.log({fullname, email});
   if (!fullname || !email) {
     throw new APIError(400, "All fields are required");
   }
@@ -318,7 +321,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 const getUserChannelProfile = asyncHandler(async (req, res) => {
   const { username } = req.params;
   if (!username?.trim()) {
-    throw new APIError(200, "username is missing");
+    throw new APIError(400, "username is missing");
   }
   const channel = await User.aggregate([
     {
@@ -327,7 +330,8 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
       },
     },
     {
-      $lookup: {  // total number of subscribers khojna paryo tesko lagi lookup lagyako
+      $lookup: {
+        // total number of subscribers khojna paryo tesko lagi lookup lagyako
         from: "subscriptions", //kata bata khojne. hamro subscription model bata
         localField: "_id", // tyo khojyako user ko id
         foreignField: "channel", // subscription model ma chai documents banyako hunxa. tyo sabai documents ma dui ota field hunxan subscriber ra channnel. total numbers of subscribers find garna hami ley tyo search huna lagyako user ko id chai channel field ma gayera khojxam. jati ota channel field ma tyo id match garxa teti nai hamro subscribers hunxan
@@ -335,7 +339,8 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
       },
     },
     {
-      $lookup: { // aaba hamro kaam kati ota channel lai subscribe garyako xa vanyera patta lagaune ho
+      $lookup: {
+        // aaba hamro kaam kati ota channel lai subscribe garyako xa vanyera patta lagaune ho
         from: "subscriptions", // patta lagauna feri jana paryo subscription model ma
         localField: "_id", // hami aaile searched user document ma xam. aani yo document ma tyo searched user ko detail _id field ma stored xa
         foreignField: "subscriber", // tyo _id leyera gayem hami subscription model ma. yo model ma dherai nai documents xan. tee documents ma chai kati ota document ma subscriber field ma chai yo id xa hai vanyera khojxan josle hami lai total number of subscribed accounts dinxa
@@ -348,10 +353,12 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
           $size: "$subscribers", // hami ley ta result array ma paunxam. so tyo array ko size calculate garyako
         },
         channelIsSubscribedToCount: {
-          $size: "$subscribedTo", 
+          $size: "$subscribedTo",
         },
-        isSubscribed: { // aaba hami ley tyo search garyako user lai subscribe garyako xa ki nai vanyera patta lagaun paryo. 
-          $cond: { // tesko lagi ta tyo searched user ko document ko subscriber field ma tesko naam xa ki nai check garxam
+        isSubscribed: {
+          // aaba hami ley tyo search garyako user lai subscribe garyako xa ki nai vanyera patta lagaun paryo.
+          $cond: {
+            // tesko lagi ta tyo searched user ko document ko subscriber field ma tesko naam xa ki nai check garxam
             if: {
               $in: [req.user?._id, "$subscribers.subscriber"],
             },
@@ -362,7 +369,8 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
       },
     },
     {
-      $project: { // yo step bata result return garxam. result chai k k return garni ho tani vanyera yeha mention garxam
+      $project: {
+        // yo step bata result return garxam. result chai k k return garni ho tani vanyera yeha mention garxam
         fullname: 1,
         username: 1,
         subscribersCount: 1,
@@ -377,55 +385,63 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
   if (!channel?.length) {
     throw new APIError(200, "channel doesn't exist");
   }
-  return res.status(200).json(new ApiResponse(200, channel[0], "user channel fetched succesfully"));
+  return res
+    .status(200)
+    .json(new ApiResponse(200, channel[0], "user channel fetched succesfully"));
 });
 
-
-const getWatchHistroy = (asyncHandler (async (req, res)=>{
-const user = await User.aggregate([
-  {
-    $match: {
-      _id: new mongoose.Types.ObjectId(req.user._id)
-    }
-  },
-  {
-    $lookup: {
-      from : "videos",
-      localField: "watchHistory",
-      foreignField: "_id",
-      as: "watchHistroy",
-      pipeline: [
-        {
-          $lookup: {
-            from : "users",
-            localField: "owner",
-            foreignField: "_id",
-            as: "owner",
-            pipeline: [
-              {
-                $project: {
-                  fullname: 1,
-                  username: 1,
-                  avatar: 1
-                }
-              }, {
-                $addFields: {
-                  owner: {
-                    $first: "$owner"
-                  }
-                }
-              }
-            ]
-          }
-        }
-      ]
-    }
-  }
-])
-return res.status(200).json(
-  new ApiResponse(200, user[0].getWatchHistroy, "Watch Histroy fetched successfully")
-)
-}))
+const getWatchHistroy = asyncHandler(async (req, res) => {
+  const user = await User.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user._id),
+      },
+    },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "watchHistory",
+        foreignField: "_id",
+        as: "watchHistroy",
+        pipeline: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner",
+              pipeline: [
+                {
+                  $project: {
+                    fullname: 1,
+                    username: 1,
+                    avatar: 1,
+                  },
+                },
+                {
+                  $addFields: {
+                    owner: {
+                      $first: "$owner",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ]);
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        user[0].getWatchHistroy,
+        "Watch Histroy fetched successfully"
+      )
+    );
+});
 export {
   registerUser,
   loginUser,
@@ -437,5 +453,5 @@ export {
   updateUserAvatar,
   updateUserCoverImage,
   getUserChannelProfile,
-  getWatchHistroy
+  getWatchHistroy,
 };
