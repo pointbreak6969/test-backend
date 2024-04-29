@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { APIError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -30,6 +30,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   const avatarLocalPath = req.files?.avatar[0]?.path;
+  console.log(req.files)
   // const coverImageLocalPath = req.files?.coverImage[0]?.path;
   let coverImageLocalPath;
   if (
@@ -37,7 +38,7 @@ const registerUser = asyncHandler(async (req, res) => {
     Array.isArray(req.files.coverImage) &&
     req.files.coverImage.length > 0
   ) {
-    coverImageLocalPath = req.files.coverImage[0].path;
+    coverImageLocalPath = req.files?.coverImage[0]?.path;
   }
 
   if (!avatarLocalPath) {
@@ -45,10 +46,10 @@ const registerUser = asyncHandler(async (req, res) => {
   }
   const avatar = await uploadOnCloudinary(avatarLocalPath);
   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-
   if (!avatar) {
     throw new APIError(400, "Avatar file is required");
   }
+  console.log(avatar);
 
   const user = await User.create({
     fullname,
@@ -239,7 +240,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
   const { fullname, email } = req.body;
-  console.log({fullname, email});
+  console.log({ fullname, email });
   if (!fullname || !email) {
     throw new APIError(400, "All fields are required");
   }
@@ -261,6 +262,11 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
+  const { publicId, url } = req.user?.avatar;
+  console.log(req.user.avatar);
+
+  // if (!(publicId || url))
+  //   throw new APIError(404, "Something went wrong while updating user avatar");
   const avatarLocalPath = req.file?.path;
   if (!avatarLocalPath) {
     throw new APIError(400, "Avatar file is missing");
@@ -281,11 +287,22 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
       new: true,
     }
   ).select("-password -refreshToken");
+  // if (url) {
+  //   try {
+  //     await deleteOnCloudinary(url, publicId);
+  //   } catch (error) {
+  //     console.log(`Failed to delete old image from cloudinary server ${error}`);
+  //     throw new APIError(500, error.message || "Server Error");
+  //   }
+  // }
   return res
     .status(200)
     .json(new ApiResponse(200, user, "User Avatar Image updated successfully"));
 });
 const updateUserCoverImage = asyncHandler(async (req, res) => {
+  const { publicId, url } = req.user?.coverImage;
+  if (!(publicId || url))
+    throw new APIError(404, "Something went wrong while updating cover image");
   const coverImageLocalPath = req.file?.path;
   if (!coverImageLocalPath) {
     throw new APIError(400, "Cover Image file is missing");
@@ -306,7 +323,14 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
       new: true,
     }
   ).select("-password -refreshToken");
-
+  if (url) {
+    try {
+      await deleteOnCloudinary(url, publicId);
+    } catch (error) {
+      console.log("Error while deleting cover image from cloudinary");
+      throw new APIError(500, "Internal Server Error");
+    }
+  }
   return res
     .status(200)
     .json(new ApiResponse(200, user, "User Cover Image updated successfully"));

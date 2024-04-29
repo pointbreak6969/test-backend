@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs"
+import { APIError } from "./ApiError.js";
 
 cloudinary.config({ 
   cloud_name: process.env.CLOUDINARY_ClOUD_NAME , 
@@ -18,9 +19,21 @@ const response = await cloudinary.uploader.upload(localFilePath, {
 fs.unlinkSync(localFilePath)
 return response
 } catch(error){
+  console.log("Error while uploading on cloudinary", error)
 fs.unlinkSync(localFilePath) // remove the locally saved temporary file as the upload operation got failed
 return null;
 }
 }
 
-export {uploadOnCloudinary}
+const deleteOnCloudinary = async (oldImageUrl, publicId)=>{
+try{
+if (!(oldImageUrl || publicId)) throw new APIError(404, "No found found to be deleted")
+const result = await cloudinary.uploader.destroy(publicId, {resource_type: `${oldImageUrl.includes("image")? "image" : "video"}`})
+console.log("Assest deleted from cloudinary", result)
+} catch(error){
+console.log("Error while deleting asset", error)
+throw new APIError(500, error?.message || "Server error")
+}
+}
+
+export {uploadOnCloudinary, deleteOnCloudinary}
