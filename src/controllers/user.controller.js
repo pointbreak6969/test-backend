@@ -30,7 +30,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   const avatarLocalPath = req.files?.avatar[0]?.path;
-  console.log(req.files)
+  console.log(req.files);
   // const coverImageLocalPath = req.files?.coverImage[0]?.path;
   let coverImageLocalPath;
   if (
@@ -42,19 +42,26 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   if (!avatarLocalPath) {
-    throw new APIError(400, "Avatar file is required");
+    throw new APIError(400, "Avatar local path not found");
   }
   const avatar = await uploadOnCloudinary(avatarLocalPath);
   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
   if (!avatar) {
-    throw new APIError(400, "Avatar file is required");
+    throw new APIError(400, "avatar file can't be uploaded on cloudinary");
   }
   console.log(avatar);
 
   const user = await User.create({
     fullname,
-    avatar: avatar.url,
-    coverImage: coverImage?.url || "",
+    avatar: {
+      publicId: avatar.public_id,
+      url: avatar.url,
+    },
+    coverImage:
+      {
+        publicId: coverImage.public_id,
+        url: coverImage.url,
+      } || "",
     email,
     password,
     username: username.toLowerCase(),
