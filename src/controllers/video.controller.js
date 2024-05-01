@@ -21,7 +21,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
     const thumbnailLocalPath = req.files?.thumbnail[0]?.path;
     const videoFile = await uploadOnCloudinary(videoLocalPath);
     const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
-    console.log(req.user)
+    console.log(req.user);
     console.log(req.user?._id);
     const video = Video.create({
       title,
@@ -80,69 +80,166 @@ const getAllVideos = asyncHandler(async (req, res) => {
   try {
     vedioAggeregate = Video.aggregate([
       {
-        $match: matchCondition
-      }, {
+        $match: matchCondition,
+      },
+      {
         $lookup: {
           from: "users",
           localField: "owner",
           foreignField: "_id",
-          as: "owner", 
-          pipeline : [
+          as: "owner",
+          pipeline: [
             {
               $project: {
                 _id: 1,
                 fullname: 1,
                 avatar: "$avatar.url",
                 username: 1,
-              }
-            }
-          ]
+              },
+            },
+          ],
         },
-        
       },
       {
         $addFields: {
           owner: {
-            $first: "$owner"
-          }
-        }
-      }, {
+            $first: "$owner",
+          },
+        },
+      },
+      {
         $sort: {
-          [sortBy || "createdAt"]: sortType || 1
-        }
-      }
-    ])
+          [sortBy || "createdAt"]: sortType || 1,
+        },
+      },
+    ]);
   } catch (error) {
     console.log("Error in aggregation", error);
-    throw new APIError(500, error.message || "Internal server error while aggegration")
+    throw new APIError(
+      500,
+      error.message || "Internal server error while aggegration"
+    );
   }
 
   const options = {
-    page, limit, customLabels: {
+    page,
+    limit,
+    customLabels: {
       totalDocs: "totalVideos",
       docs: "videos",
     },
-    skip: (page -1) * limit,
-    limit: parseInt(limit)
-  }
-  Video.aggregatePaginate(vedioAggeregate, options).then((result) =>{
-    if (result.videos.length === 0 && userId ){
-      return res.status(200).json(new ApiResponse(200, [], "No videos found"))
-    }
-    return res.status(200).json(new ApiResponse(200, result, "Video fetched Successfully"))
-  }).catch((error)=>{
-    console.log("Error:", error);
-    throw new APIError(500, error.message || "Internal server error in vedio aggregate Paginate")
-  })
+    skip: (page - 1) * limit,
+    limit: parseInt(limit),
+  };
+  Video.aggregatePaginate(vedioAggeregate, options)
+    .then((result) => {
+      if (result.videos.length === 0 && userId) {
+        return res
+          .status(200)
+          .json(new ApiResponse(200, [], "No videos found"));
+      }
+      return res
+        .status(200)
+        .json(new ApiResponse(200, result, "Video fetched Successfully"));
+    })
+    .catch((error) => {
+      console.log("Error:", error);
+      throw new APIError(
+        500,
+        error.message || "Internal server error in vedio aggregate Paginate"
+      );
+    });
 });
 
-const getVidoeById = asyncHandler(async (req, res)=>{
-  const {videoId} = req.params;
-  if(!isValidObjectId(videoId)) throw new APIError(404, "No Video found")
-  const findVideo = await Video.findById(videoId)
-if (!findVideo) throw new APIError(404, "No vidoe found")
-const user = await User.findById(req.user._id, {watchHistory: 1})
-if (!user) throw new APIError(404, "User not found")
+const getVidoeById = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
+  if (!isValidObjectId(videoId)) throw new APIError(404, "No Video found");
+  const findVideo = await Video.findById(videoId);
+  if (!findVideo) throw new APIError(404, "No vidoe found");
+  const user = await User.findById(req.user._id, { watchHistory: 1 });
+  if (!user) throw new APIError(404, "User not found");
+  if (!user.watchHistory.includes(videoId)) {
+    await Video.findByIdAndUpdate(
+      videoId,
+      {
+        $inc: { views: 1 },
+      },
+      {
+        new: true,
+      }
+    );
+  }
+  await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $addToSet: {
+        watchHistory: videoId,
+      },
+    },
+    {
+      new: true,
+    }
+  );
+  const video = await Video.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(videoId),
+      },
+    },
+    {
+      $lookup: {
+        form: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "owner",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              avatar: "$avatar.url",
+              fullname: 1,
+              _id: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $addFields: {
+        owner: {
+          $first: "$owner",
+        },
+      },
+    },
+    {
+      $addFields: {
+        videoFile: "$videoFile.url",
+      },
+    },
+    {
+      $addFields: {
+        thumbnail: "$thumbnail.url",
+      },
+    },
+  ]);
+  console.log("Video ::", video[0]);
+  if (!video) throw new APIError(500, "Video Details not found");
+  return res
+    .status(200)
+    .json(new ApiResponse(200, video[0], "Fetched video successfully"));
+});
 
-})
-export { uploadVideo };
+const updateVideoDetails = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
+  const { title, description } = req.body;
+  const thumbnailLocalPath = req.file?.path;
+  if (!isValidObjectId(videoId)) throw new APIError(400, "Invalid Video Id");
+  const oldVideo = await Video.findById(videoId, { thumbnail: 1 });
+  if (!oldVideo) throw new APIError(404, "No video found");
+  if (
+    !(thumbnailLocalPath || !(title || title.trim() === "")) ||
+    !(!description || !description.trim() === "")
+  )
+    throw new APIError(400, "update files are required");
+});
+export { uploadVideo, getAllVideos, getVidoeById };
