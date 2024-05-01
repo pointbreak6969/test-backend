@@ -76,5 +76,73 @@ const getAllVideos = asyncHandler(async (req, res) => {
   if (userId) {
     matchCondition.owner = new mongoose.Types.ObjectId(userId);
   }
+  var vedioAggeregate;
+  try {
+    vedioAggeregate = Video.aggregate([
+      {
+        $match: matchCondition
+      }, {
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "owner", 
+          pipeline : [
+            {
+              $project: {
+                _id: 1,
+                fullname: 1,
+                avatar: "$avatar.url",
+                username: 1,
+              }
+            }
+          ]
+        },
+        
+      },
+      {
+        $addFields: {
+          owner: {
+            $first: "$owner"
+          }
+        }
+      }, {
+        $sort: {
+          [sortBy || "createdAt"]: sortType || 1
+        }
+      }
+    ])
+  } catch (error) {
+    console.log("Error in aggregation", error);
+    throw new APIError(500, error.message || "Internal server error while aggegration")
+  }
+
+  const options = {
+    page, limit, customLabels: {
+      totalDocs: "totalVideos",
+      docs: "videos",
+    },
+    skip: (page -1) * limit,
+    limit: parseInt(limit)
+  }
+  Video.aggregatePaginate(vedioAggeregate, options).then((result) =>{
+    if (result.videos.length === 0 && userId ){
+      return res.status(200).json(new ApiResponse(200, [], "No videos found"))
+    }
+    return res.status(200).json(new ApiResponse(200, result, "Video fetched Successfully"))
+  }).catch((error)=>{
+    console.log("Error:", error);
+    throw new APIError(500, error.message || "Internal server error in vedio aggregate Paginate")
+  })
 });
+
+const getVidoeById = asyncHandler(async (req, res)=>{
+  const {videoId} = req.params;
+  if(!isValidObjectId(videoId)) throw new APIError(404, "No Video found")
+  const findVideo = await Video.findById(videoId)
+if (!findVideo) throw new APIError(404, "No vidoe found")
+const user = await User.findById(req.user._id, {watchHistory: 1})
+if (!user) throw new APIError(404, "User not found")
+
+})
 export { uploadVideo };
