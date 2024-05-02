@@ -272,5 +272,17 @@ const updateVideoDetails = asyncHandler(async (req, res) => {
 return res.status(200).json(new ApiResponse(201, video, "video updated successfully"))
 });
 
+const deleteVideo = asyncHandler(async (req, res)=>{
+  const {videoId} = req.params;
+if (!isValidObjectId(videoId)) throw new APIError(400, "no valid video found")
+try {
+  const video = await Video.findById(videoId, {videoFile:1, thumbnail:1}).select("_id videoFile thumbnail")
+  if (!video) throw new APIError(404, "No video found")
+  await Video.findByIdAndDelete(videoId)
+} catch (error) {
+  console.log("error while deleting video: ", error)
+}
+  
+})
 
-export { uploadVideo, getAllVideos, getVidoeById };
+export { uploadVideo, getAllVideos, getVidoeById, deleteVideo, updateVideoDetails, };

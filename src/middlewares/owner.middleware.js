@@ -21,3 +21,5 @@ export const checkOwner = (resourcekey, model) =>
       next(error);
     }
   });
+
+  export {checkOwner};
