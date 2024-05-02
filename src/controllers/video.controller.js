@@ -241,5 +241,36 @@ const updateVideoDetails = asyncHandler(async (req, res) => {
     !(!description || !description.trim() === "")
   )
     throw new APIError(400, "update files are required");
+
+  const updatedThumbnail = await uploadOnCloudinary(thumbnailLocalPath);
+  if (!updatedThumbnail)
+    throw new APIError(500, "thumbnail not uploaded on cloudinary");
+
+  const { publicId, url } = oldVideo?.thumbnail;
+  if (!(publicId || url))
+    throw new APIError(500, "old thumbnail url or publicId not found");
+  const video = await Video.findByIdAndUpdate(
+    videoId,
+    {
+      $set: {
+        title,
+        description,
+        thumbnail: {
+          publicId: updatedThumbnail.public_id,
+          url: updatedThumbnail.url,
+        },
+      },
+    },
+    {
+      new: true,
+    }
+  );
+  if (!video){
+    throw new APIError(500, "updated video not uploaded on database")
+  }
+
+return res.status(200).json(new ApiResponse(201, video, "video updated successfully"))
 });
+
+
 export { uploadVideo, getAllVideos, getVidoeById };
