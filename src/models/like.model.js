@@ -24,4 +24,4 @@ const likeSchema = new Schema(
   }
 );
 
-export const like = mongoose.model("like", likeSchema);
+export const Like = mongoose.model("like", likeSchema);
